@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils, datasets
-
+from PIL import Image
 # Ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
@@ -49,7 +49,8 @@ class MyDataset(Dataset):
                                 self.data_frames.iloc[idx, 0])
         image = io.imread(img_name)
         parameters = self.data_frames.iloc[idx, 1:].as_matrix()
-        parameters = parameters.astype('float').reshape(1, -1)
+        # parameters = parameters.astype('float').reshape(1, -1)
+        parameters = parameters.astype('float')
         if self.transform:
             image = self.transform(image)
             parameters = torch.from_numpy(parameters)
@@ -78,19 +79,12 @@ if __name__ == "__main__":
                                           transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                                           ])
     # Define custom dataset
-    training_data= MyDataset("data.csv", "train", transformations)
+    training_data= MyDataset("test.csv", "data/test", transformations)
     # Define data loader
     mn_dataset_loader = torch.utils.data.DataLoader(dataset=training_data, batch_size=3, shuffle=False, num_workers=0)
 
     for i_batch, sample_batched in enumerate(mn_dataset_loader):
         print(i_batch, sample_batched['input'].size(),
               sample_batched['output'].size())
-        if i_batch == 2:
-            plt.figure()
-            show_landmarks_batch(sample_batched)
-            plt.axis('off')
-            plt.ioff()
-            plt.savefig("test.png")
-            break
 
 

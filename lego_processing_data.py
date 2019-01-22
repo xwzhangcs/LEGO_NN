@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils, datasets
-
+from PIL import Image
 # Ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
@@ -35,9 +35,11 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         img_name = os.path.join(self.root_dir,
                                 self.data_frames.iloc[idx, 0])
-        image = io.imread(img_name)
+        #image = io.imread(img_name)
+        image = Image.open(img_name)
         parameters = self.data_frames.iloc[idx, 1:].as_matrix()
-        parameters = parameters.astype('float').reshape(1, -1)
+        # parameters = parameters.astype('float').reshape(1, -1)
+        parameters = parameters.astype('float')
         if self.transform:
             image = self.transform(image)
             parameters = torch.from_numpy(parameters)

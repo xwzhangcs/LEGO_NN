@@ -14,12 +14,13 @@ plt.switch_backend('agg')
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils, datasets, models
 from lego_processing_data import MyDataset
+from PIL import Image
 # Ignore warnings
 import warnings
 warnings.filterwarnings("ignore")
 
 num_outputs = 4
-
+num_epochs = 3
 
 # Helper function to show a batch
 def show_landmarks_batch(sample_batched):
@@ -37,12 +38,14 @@ def show_landmarks_batch(sample_batched):
     plt.pause(0.001)  # pause a bit so that plots are updated
 
 
-def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, device, num_epochs=25):
     since = time.time()
 
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_loss = 0.0
+    val_loss_history = []
+    train_loss_history = []
 
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_loss = 1.0
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -69,7 +72,7 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    loss = criterion(outputs, labels)
+                    loss = criterion(outputs.float(), labels.float())
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -87,6 +90,10 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
             if phase == 'val' and epoch_loss < best_loss:
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
+            if phase == 'train':
+                train_loss_history.append(epoch_loss)
+            if phase == 'val':
+                val_loss_history.append(epoch_loss)
 
         print()
 
@@ -97,17 +104,19 @@ def train_model(model, dataloaders, criterion, optimizer, scheduler, num_epochs=
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    return model
+    return model, train_loss_history, val_loss_history
 
 
 if __name__ == "__main__":
     # Just normalization for validation
     data_transforms = {
         'train': transforms.Compose([
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'val': transforms.Compose([
+            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
@@ -121,9 +130,10 @@ if __name__ == "__main__":
                                                   shuffle=True, num_workers=4)
                    for x in ['train', 'val']}
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-    print(dataset_sizes)
+    #print(dataset_sizes)
     # GPU mode
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+
     """
     # Get a batch of training data
     sample_batched = next(iter(dataset_loaders['train']))
@@ -135,7 +145,6 @@ if __name__ == "__main__":
     plt.savefig("test.png")
     """
     # Finetuning the convnet
-    num_output = 4
     model_ft = models.resnet18(pretrained=True)
     num_ftrs = model_ft.fc.in_features
     model_ft.fc = nn.Linear(num_ftrs, num_outputs)
@@ -149,10 +158,27 @@ if __name__ == "__main__":
 
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
-
     # Train and evaluate
-    model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-                           num_epochs=25)
+    model_ft, train_loss_hist, val_loss_hist = train_model(model_ft, dataset_loaders, dataset_sizes, criterion, optimizer_ft, exp_lr_scheduler,
+                           device, num_epochs)
+    # plot loss history
+    thist = []
+    vhist = []
+
+    thist = [h for h in train_loss_hist]
+    vhist = [h for h in val_loss_hist]
+    plt.title("Training and Validation Loss vs. Number of Training Epochs")
+    plt.xlabel("Training Epochs")
+    plt.ylabel("Loss")
+    plt.plot(range(1, num_epochs + 1), thist, label="Training")
+    plt.plot(range(1, num_epochs + 1), vhist, label="Validation")
+    plt.ylim((0, 0.2))
+    plt.xticks(np.arange(1, num_epochs + 1, 1.0))
+    plt.legend()
+    plt.savefig("loss_curve.png")
+    # plt.show()
+
+
 
 
 
