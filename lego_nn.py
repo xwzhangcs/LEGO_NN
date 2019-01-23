@@ -20,8 +20,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 num_outputs = 4
-num_epochs = 3
-
+num_epochs = 10
+PATH = "lego.pth"
 # Helper function to show a batch
 def show_landmarks_batch(sample_batched):
     images_batch, paras_batch = sample_batched['input'], sample_batched['output']
@@ -120,15 +120,23 @@ if __name__ == "__main__":
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
+        'test': transforms.Compose([
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
     }
 
     data_dir = 'data/'
     image_datasets = {x: MyDataset(x + '.csv', os.path.join(data_dir, x),
                                               data_transforms[x])
-                      for x in ['train', 'val']}
+                      for x in ['train', 'val', 'test']}
     dataset_loaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
                                                   shuffle=True, num_workers=4)
                    for x in ['train', 'val']}
+    dataset_loaders['test'] = torch.utils.data.DataLoader(image_datasets['test'], batch_size=1,
+                                                  shuffle=False, num_workers=4)
+
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
     #print(dataset_sizes)
     # GPU mode
@@ -177,6 +185,25 @@ if __name__ == "__main__":
     plt.legend()
     plt.savefig("loss_curve.png")
     # plt.show()
+
+    # save model
+    torch.save(model_ft, PATH)
+
+    # test model
+    model_ft.eval()
+    for i_batch, test_batch in enumerate(dataset_loaders['test']):
+        inputs = test_batch['input'].to(device)
+        labels = test_batch['output'].to(device)
+        print(i_batch, inputs.size(),
+              labels.size())
+        outputs = model_ft(inputs)
+        print("labels is {}, and outputs is {}".format(labels, outputs))
+        loss = criterion(outputs.float(), labels.float())
+        print("loss is {}".format(loss))
+        if i_batch == 3:
+            break
+
+
 
 
 
