@@ -14,6 +14,7 @@ plt.switch_backend('agg')
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils, datasets, models
 from lego_processing_data import MyDataset
+from lego_processing_test_data import MyTestDataset
 from PIL import Image
 # Ignore warnings
 import warnings
@@ -25,14 +26,13 @@ PATH = "lego.pth"
 
 if __name__ == "__main__":
     # Define transforms
-    transformations = transforms.Compose([transforms.CenterCrop(224),
-                                          transforms.ToTensor(),
+    transformations = transforms.Compose([transforms.ToTensor(),
                                           transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                                           ])
     # Define custom dataset
-    test_data = MyDataset("test.csv", "data/test", transformations)
+    test_data = MyTestDataset("real.csv", "data/real_2", transformations)
     # Define data loader
-    test_dataset_loader = torch.utils.data.DataLoader(dataset=test_data, batch_size=1, shuffle=False, num_workers=4)
+    test_dataset_loader = torch.utils.data.DataLoader(dataset=test_data, batch_size=1, shuffle=False)
     # GPU mode
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     criterion = nn.MSELoss()
@@ -43,15 +43,22 @@ if __name__ == "__main__":
     model.eval()
     for i_batch, test_batch in enumerate(test_dataset_loader):
         inputs = test_batch['input'].to(device)
-        labels = test_batch['output'].to(device)
-        print(i_batch, inputs.size(),
-              labels.size())
+        # labels = test_batch['output'].to(device)
+        print(i_batch, inputs.size())
+        outputs = model(inputs)
+        print("outputs is {}".format(outputs))
+        """
+        loss = criterion(outputs.float(), labels.float())
+        print("loss is {}".format(loss))
+        print("------------Try again---------------")
         outputs = model(inputs)
         print("labels is {}, and outputs is {}".format(labels, outputs))
         loss = criterion(outputs.float(), labels.float())
         print("loss is {}".format(loss))
-        if i_batch == 3:
+        if i_batch == 1:
             break
+        """
+
 
 
 

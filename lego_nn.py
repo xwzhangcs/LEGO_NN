@@ -20,7 +20,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 num_outputs = 4
-num_epochs = 10
+num_epochs = 100
 PATH = "lego.pth"
 # Helper function to show a batch
 def show_landmarks_batch(sample_batched):
@@ -56,6 +56,7 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 scheduler.step()
                 model.train()  # Set model to training mode
             else:
+                model.train(False)
                 model.eval()   # Set model to evaluate mode
 
             running_loss = 0.0
@@ -84,8 +85,10 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
 
             epoch_loss = running_loss / dataset_sizes[phase]
 
-            print('{} Loss: {:.4f}'.format(phase, epoch_loss))
-
+            print('{} Loss: {:.8f}'.format(phase, epoch_loss))
+            time_elapsed = time.time() - since
+            print('Training time in {:.0f}m {:.0f}s'.format(
+                time_elapsed // 60, time_elapsed % 60))
             # deep copy the model
             if phase == 'val' and epoch_loss < best_loss:
                 best_loss = epoch_loss
@@ -95,12 +98,15 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
             if phase == 'val':
                 val_loss_history.append(epoch_loss)
 
+            if epoch % 20 == 0 and epoch > 0:
+                torch.save(model, 'test_' + str(epoch) + '.pth')
+
         print()
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
-    print('Best val Loss: {:4f}'.format(best_loss))
+    print('Best val Loss: {:8f}'.format(best_loss))
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -111,17 +117,14 @@ if __name__ == "__main__":
     # Just normalization for validation
     data_transforms = {
         'train': transforms.Compose([
-            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'val': transforms.Compose([
-            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'test': transforms.Compose([
-            transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
@@ -131,16 +134,16 @@ if __name__ == "__main__":
     image_datasets = {x: MyDataset(x + '.csv', os.path.join(data_dir, x),
                                               data_transforms[x])
                       for x in ['train', 'val', 'test']}
-    dataset_loaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
+    dataset_loaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=200,
                                                   shuffle=True, num_workers=4)
                    for x in ['train', 'val']}
     dataset_loaders['test'] = torch.utils.data.DataLoader(image_datasets['test'], batch_size=1,
                                                   shuffle=False, num_workers=4)
 
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-    #print(dataset_sizes)
+    print(dataset_sizes)
     # GPU mode
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
 
     """
     # Get a batch of training data
@@ -162,10 +165,10 @@ if __name__ == "__main__":
     criterion = nn.MSELoss()
 
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+    optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.01, momentum=0.9)
 
     # Decay LR by a factor of 0.1 every 7 epochs
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=20, gamma=0.1)
     # Train and evaluate
     model_ft, train_loss_hist, val_loss_hist = train_model(model_ft, dataset_loaders, dataset_sizes, criterion, optimizer_ft, exp_lr_scheduler,
                            device, num_epochs)
@@ -189,19 +192,6 @@ if __name__ == "__main__":
     # save model
     torch.save(model_ft, PATH)
 
-    # test model
-    model_ft.eval()
-    for i_batch, test_batch in enumerate(dataset_loaders['test']):
-        inputs = test_batch['input'].to(device)
-        labels = test_batch['output'].to(device)
-        print(i_batch, inputs.size(),
-              labels.size())
-        outputs = model_ft(inputs)
-        print("labels is {}, and outputs is {}".format(labels, outputs))
-        loss = criterion(outputs.float(), labels.float())
-        print("loss is {}".format(loss))
-        if i_batch == 3:
-            break
 
 
 
