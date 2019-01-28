@@ -16,6 +16,7 @@ from torchvision import transforms, utils, datasets, models
 from lego_processing_data import MyDataset
 from PIL import Image
 # Ignore warnings
+import math
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -40,14 +41,14 @@ if __name__ == "__main__":
     thist = []
     vhist = []
 
-    thist = [h * 100 for h in train_loss_hist]
-    vhist = [h * 100 for h in val_loss_hist]
+    thist = [math.log10(h) for h in train_loss_hist]
+    vhist = [math.log10(h) for h in val_loss_hist]
     plt.title("Training and Validation Loss vs. Number of Training Epochs")
     plt.xlabel("Training Epochs")
     plt.ylabel("Loss")
     plt.plot(range(1, num_epochs + 1), thist, label="Training")
     plt.plot(range(1, num_epochs + 1), vhist, label="Validation")
-    plt.ylim((0, 10.0))
+    # plt.ylim((0, 10.0))
     # plt.xticks(np.arange(1, num_epochs + 1, 1.0))
     plt.legend()
     plt.savefig("learning_curve.png")
