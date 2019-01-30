@@ -14,7 +14,6 @@ plt.switch_backend('agg')
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils, datasets, models
 from lego_processing_data import MyDataset
-from logger import Logger
 from PIL import Image
 # Ignore warnings
 import warnings
@@ -22,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 num_outputs = 4
 num_epochs = 1000
-PATH = "lego.pth"
+PATH = "lego_test.pth"
 # Helper function to show a batch
 def show_landmarks_batch(sample_batched):
     images_batch, paras_batch = sample_batched['input'], sample_batched['output']
@@ -39,81 +38,51 @@ def show_landmarks_batch(sample_batched):
     plt.pause(0.001)  # pause a bit so that plots are updated
 
 
-def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, device, num_epochs, logger_train, logger_val):
-
-    since = time.time()
+def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, device, num_epochs=25):
 
     val_loss_history = []
     train_loss_history = []
 
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_loss = 1.0
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
+        iter = 0
+        # Iterate over data.
+        for sample_batched in dataloaders["train"]:
+            inputs = sample_batched['input'].to(device)
+            labels = sample_batched['output'].to(device)
 
-        # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                scheduler.step()
-                model.train()  # Set model to training mode
-            else:
-                model.train(False)
-                model.eval()   # Set model to evaluate mode
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-            running_loss = 0.0
-
-            # Iterate over data.
-            for sample_batched in dataloaders[phase]:
-                inputs = sample_batched['input'].to(device)
-                labels = sample_batched['output'].to(device)
-
-                # zero the parameter gradients
-                optimizer.zero_grad()
+            # Each epoch has a training and validation phase
+            for phase in ['train', 'val']:
+                if phase == 'train':
+                    scheduler.step()
+                    model.train()  # Set model to training mode
+                else:
+                    model.train(False)
+                    model.eval()  # Set model to evaluate mode
 
                 # forward
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
+                    print("try ....\n")
+                    print(outputs)
                     loss = criterion(outputs.float(), labels.float())
-
+                    print('{}: Batch of {} and  Loss: {:.8f}'.format(phase, iter, loss.item()))
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
+                        print("try again ....\n")
+                        model.eval()
+                        outputs = model(inputs)
+                        print(outputs)
 
-                # statistics
-                running_loss += loss.item() * inputs.size(0)
-
-            epoch_loss = running_loss / dataset_sizes[phase]
-
-            print('{} Loss: {:.8f}'.format(phase, epoch_loss))
-            time_elapsed = time.time() - since
-            print('Training time in {:.0f}m {:.0f}s'.format(
-                time_elapsed // 60, time_elapsed % 60))
-            # deep copy the model
-            if phase == 'val' and epoch_loss < best_loss:
-                best_loss = epoch_loss
-                best_model_wts = copy.deepcopy(model.state_dict())
-            if phase == 'train':
-                train_loss_history.append(epoch_loss)
-                logger_train.scalar_summary("loss", epoch_loss, epoch + 1)
-            if phase == 'val':
-                val_loss_history.append(epoch_loss)
-                logger_val.scalar_summary("loss", epoch_loss, epoch + 1)
-
-            if epoch % 20 == 0 and epoch > 0:
-                torch.save(model, 'test_' + str(epoch) + '.pth')
-
+            iter = iter + 1
         print()
-
-    time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
-    print('Best val Loss: {:8f}'.format(best_loss))
-
-    # load best model weights
-    model.load_state_dict(best_model_wts)
     return model, train_loss_history, val_loss_history
 
 
@@ -173,11 +142,9 @@ if __name__ == "__main__":
 
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=20, gamma=0.1)
-    logger_train = Logger('./logs/log_train')
-    logger_val = Logger('./logs/log_val')
     # Train and evaluate
     model_ft, train_loss_hist, val_loss_hist = train_model(model_ft, dataset_loaders, dataset_sizes, criterion, optimizer_ft, exp_lr_scheduler,
-                           device, num_epochs, logger_train, logger_val)
+                           device, num_epochs)
     # plot loss history
     thist = []
     vhist = []
